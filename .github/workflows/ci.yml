@@ -59,7 +59,7 @@ jobs:
         run: scripts/check-migrations.sh
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.122.1  # pinned: "latest" queries the GitHub API and hits rate limits
       - name: Apply migrations to a local database
         run: supabase db start
       - name: Lint database
