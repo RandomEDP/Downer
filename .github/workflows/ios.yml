@@ -24,6 +24,23 @@ jobs:
           echo "::error::TestFlight uploads are only allowed from main (got ${{ github.ref }})."
           exit 1
 
+      - name: Check Apple secrets are set
+        if: ${{ inputs.testflight }}
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          missing=0
+          for name in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::Repository secret $name is not set."; missing=1; fi
+          done
+          if [ -n "$ASC_PRIVATE_KEY" ] && ! printf '%s' "$ASC_PRIVATE_KEY" | grep -q "BEGIN PRIVATE KEY"; then
+            echo "::error::ASC_PRIVATE_KEY must be the full text of the .p8 file, including the BEGIN/END lines."; missing=1
+          fi
+          exit $missing
+
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
         with:
