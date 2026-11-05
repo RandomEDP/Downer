@@ -1,0 +1,108 @@
+name: iOS release
+
+# Manual only. With testflight=true it signs and uploads a build to TestFlight (main branch only).
+on:
+  workflow_dispatch:
+    inputs:
+      testflight:
+        description: Upload to TestFlight (main only)
+        type: boolean
+        default: false
+
+concurrency:
+  group: ios-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Only main can go to TestFlight
+        if: ${{ inputs.testflight && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::TestFlight uploads are only allowed from main (got ${{ github.ref }})."
+          exit 1
+
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Write build config from secrets
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          {
+            echo "DOWNER_TEAM_ID = ${APPLE_TEAM_ID}"
+            # xcconfig treats // as a comment, so split the scheme.
+            echo "SUPABASE_URL = ${SUPABASE_URL/:\/\//:/\$()/}"
+            echo "SUPABASE_PUBLISHABLE_KEY = ${SUPABASE_PUBLISHABLE_KEY}"
+          } > Config/Local.xcconfig
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Write App Store Connect API key
+        if: ${{ inputs.testflight }}
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          printf '%s\n' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/asc/AuthKey.p8"
+
+      - name: Build (unsigned check)
+        if: ${{ !inputs.testflight }}
+        run: |
+          set -o pipefail
+          xcodebuild build -project Downer.xcodeproj -scheme Downer -configuration Release \
+            -destination 'generic/platform=iOS' -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO | tail -20
+
+      - name: Archive
+        if: ${{ inputs.testflight }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          xcodebuild archive -project Downer.xcodeproj -scheme Downer -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Downer.xcarchive" \
+            -skipPackagePluginValidation -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} | tail -30
+
+      - name: Upload to TestFlight
+        if: ${{ inputs.testflight }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          set -o pipefail
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Downer.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" | tail -30
+          echo "### Uploaded build ${{ github.run_number }} to TestFlight" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove API key
+        if: ${{ always() }}
+        run: rm -rf "$RUNNER_TEMP/asc"

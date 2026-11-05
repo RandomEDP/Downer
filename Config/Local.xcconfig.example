@@ -1,0 +1,4 @@
+// Copy to Config/Local.xcconfig for local builds. Note the $() trick: "//" starts a comment in xcconfig.
+DOWNER_TEAM_ID = ABCDE12345
+SUPABASE_URL = https:/$()/your-project-ref.supabase.co
+SUPABASE_PUBLISHABLE_KEY = sb_publishable_xxx

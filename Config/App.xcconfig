@@ -1,0 +1,8 @@
+// Shared build settings. Real values come from Config/Local.xcconfig (gitignored),
+// which CI writes from repository secrets. Never commit keys here.
+DOWNER_BUNDLE_ID = com.randomedp.downer
+DOWNER_TEAM_ID =
+SUPABASE_URL =
+SUPABASE_PUBLISHABLE_KEY =
+
+#include? "Local.xcconfig"
