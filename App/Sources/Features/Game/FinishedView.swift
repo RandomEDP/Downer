@@ -6,7 +6,7 @@ struct FinishedView: View {
     var body: some View {
         let players = Scoring.leaderboard(for: game)
         let teams = Scoring.teamLeaderboard(for: game)
-        List {
+        SplitSections {
             Section {
                 VStack(spacing: 12) {
                     Image(systemName: "trophy.fill")
@@ -27,6 +27,7 @@ struct FinishedView: View {
                 .padding(.vertical, 16)
                 .multilineTextAlignment(.center)
             }
+        } secondary: {
             Section {
                 ForEach(players) { entry in
                     LabeledContent {

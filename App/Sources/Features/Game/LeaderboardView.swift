@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LeaderboardView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let game: Game
 
     @State private var mode = Mode.teams
@@ -13,23 +14,24 @@ struct LeaderboardView: View {
     }
 
     var body: some View {
-        List {
-            if !game.teams.isEmpty {
-                Picker("Show", selection: $mode) {
-                    ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
-            }
-
-            if showsTeams {
-                ForEach(Scoring.teamLeaderboard(for: game)) { entry in
-                    TeamStandingRow(entry: entry)
-                }
+        Group {
+            if game.teams.isEmpty {
+                List { playerSection }
+            } else if horizontalSizeClass == .regular {
+                // Wide screens (iPhone Duo open, landscape): both boards side by side.
+                SplitSections { teamSection } secondary: { playerSection }
             } else {
-                ForEach(Scoring.leaderboard(for: game)) { entry in
-                    PlayerStandingRow(entry: entry, team: game.team(entry.player.teamID))
+                List {
+                    Picker("Show", selection: $mode) {
+                        ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                    switch mode {
+                    case .teams: teamSection
+                    case .players: playerSection
+                    }
                 }
             }
         }
@@ -42,17 +44,32 @@ struct LeaderboardView: View {
         .refreshable { await model.refresh() }
     }
 
-    private var showsTeams: Bool { !game.teams.isEmpty && mode == .teams }
+    private var teamSection: some View {
+        Section("Teams") {
+            ForEach(Scoring.teamLeaderboard(for: game)) { entry in
+                TeamStandingRow(entry: entry)
+            }
+        }
+    }
+
+    private var playerSection: some View {
+        Section("Players") {
+            ForEach(Scoring.leaderboard(for: game)) { entry in
+                PlayerStandingRow(entry: entry, team: game.team(entry.player.teamID))
+            }
+        }
+    }
 }
 
 struct RankBadge: View {
     let rank: Int
     let hasScores: Bool
+    @ScaledMetric(relativeTo: .headline) private var size = 32.0
 
     var body: some View {
         Text(hasScores ? "\(rank)" : "–")
             .font(.headline.monospacedDigit())
-            .frame(minWidth: 32, minHeight: 32)
+            .frame(minWidth: size, minHeight: size)
             .background(rank == 1 && hasScores ? AnyShapeStyle(.yellow.opacity(0.35)) : AnyShapeStyle(.quaternary), in: .circle)
             .accessibilityLabel(hasScores ? "Position \(rank)" : "No scores yet")
     }
@@ -63,15 +80,17 @@ private struct PlayerStandingRow: View {
     let team: Team?
 
     var body: some View {
-        HStack(spacing: 12) {
-            RankBadge(rank: entry.rank, hasScores: entry.holesPlayed > 0)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.player.name).font(.headline)
-                Text([team?.name, "thru \(entry.holesPlayed)"].compactMap(\.self).joined(separator: " · "))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+        AdaptiveRow {
+            HStack(spacing: 12) {
+                RankBadge(rank: entry.rank, hasScores: entry.holesPlayed > 0)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.player.name).font(.headline)
+                    Text([team?.name, "thru \(entry.holesPlayed)"].compactMap(\.self).joined(separator: " · "))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
-            Spacer()
+        } trailing: {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(Scoring.formatToPar(entry.toPar))
                     .font(.title3.monospacedDigit().bold())
@@ -88,16 +107,18 @@ private struct TeamStandingRow: View {
     let entry: TeamLeaderboardEntry
 
     var body: some View {
-        HStack(spacing: 12) {
-            RankBadge(rank: entry.rank, hasScores: entry.hasScores)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.team.name).font(.headline)
-                Text(entry.players.isEmpty ? "No players" : entry.players.map(\.player.name).joined(separator: ", "))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+        AdaptiveRow {
+            HStack(spacing: 12) {
+                RankBadge(rank: entry.rank, hasScores: entry.hasScores)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.team.name).font(.headline)
+                    Text(entry.players.isEmpty ? "No players" : entry.players.map(\.player.name).joined(separator: ", "))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                }
             }
-            Spacer()
+        } trailing: {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(Scoring.formatToPar(entry.averageToPar))
                     .font(.title3.monospacedDigit().bold())

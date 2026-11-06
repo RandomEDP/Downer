@@ -72,39 +72,55 @@ private struct ScorecardRow: View {
     let canEdit: Bool
     let edit: () -> Void
 
+    @ScaledMetric(relativeTo: .headline) private var numberWidth = 28.0
+
     var body: some View {
         Button(action: edit) {
-            HStack(spacing: 12) {
-                Text("\(number)")
-                    .font(.headline.monospacedDigit())
-                    .frame(minWidth: 28)
-                    .foregroundStyle(isCurrent ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(hole.pubName)
-                    Text("\(hole.drink) · par \(hole.par)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            AdaptiveRow {
+                HStack(spacing: 12) {
+                    Text("\(number)")
+                        .font(.headline.monospacedDigit())
+                        .frame(minWidth: numberWidth)
+                        .foregroundStyle(isCurrent ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                        .accessibilityLabel(isCurrent ? "Hole \(number), current" : "Hole \(number)")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(hole.pubName)
+                        Text("\(hole.drink) · par \(hole.par)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                Spacer()
+            } trailing: {
                 if let score {
                     let strokes = Scoring.strokes(for: score, penalties: penalties)
-                    Text("\(strokes)")
-                        .font(.title3.monospacedDigit().bold())
-                        .foregroundStyle(strokes <= hole.par ? AnyShapeStyle(.green) : AnyShapeStyle(.primary))
-                    if !score.penaltyIDs.isEmpty {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                            .accessibilityLabel("Includes penalties")
+                    HStack(spacing: 8) {
+                        if !score.penaltyIDs.isEmpty {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                                .accessibilityLabel("Includes penalties")
+                        }
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("\(strokes)")
+                                .font(.title3.monospacedDigit().bold())
+                                .foregroundStyle(strokes <= hole.par ? AnyShapeStyle(.green) : AnyShapeStyle(.primary))
+                            Text(Scoring.formatToPar(strokes - hole.par))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 } else {
-                    Text("–").foregroundStyle(.secondary)
+                    Text("No score")
+                        .foregroundStyle(.secondary)
                 }
             }
+            .frame(minHeight: 44)
             .contentShape(.rect)
+            .accessibilityElement(children: .combine)
         }
         .tint(.primary)
         .disabled(!canEdit)
         .accessibilityHint(canEdit ? "Edit score" : "")
+        .accessibilityRemoveTraits(canEdit ? [] : .isButton)
     }
 }
 

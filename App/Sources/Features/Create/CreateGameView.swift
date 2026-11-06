@@ -40,7 +40,13 @@ struct CreateGameView: View {
                         holes.append(Hole(pubName: "Pub \(holes.count + 1)", drink: "Pint", par: 5))
                     }
                 } header: {
-                    Text("Route")
+                    HStack {
+                        Text("Route")
+                        Spacer()
+                        EditButton()
+                            .font(.subheadline)
+                            .textCase(nil)
+                    }
                 } footer: {
                     Text("Tap a hole to search for the pub. Par is the number of sips to finish the drink. \(holes.count) holes, par \(holes.reduce(0) { $0 + $1.par }).")
                 }
@@ -67,11 +73,12 @@ struct CreateGameView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") { create() }
-                        .disabled(!canCreate || isSaving)
-                }
-                ToolbarItem(placement: .topBarLeading) {
-                    EditButton()
+                    if isSaving {
+                        ProgressView().accessibilityLabel("Creating")
+                    } else {
+                        Button("Create") { create() }
+                            .disabled(!canCreate)
+                    }
                 }
             }
         }

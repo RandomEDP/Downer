@@ -31,8 +31,12 @@ struct JoinGameView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Join", action: join)
-                        .disabled(!canJoin || isJoining)
+                    if isJoining {
+                        ProgressView().accessibilityLabel("Joining")
+                    } else {
+                        Button("Join", action: join)
+                            .disabled(!canJoin)
+                    }
                 }
             }
             .onAppear { codeFocused = true }
