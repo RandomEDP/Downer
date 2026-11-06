@@ -10,11 +10,15 @@ struct CurrentHoleView: View {
     @State private var confirmingNext = false
 
     var body: some View {
-        List {
+        SplitSections {
             if let hole = game.currentHole {
                 Section {
                     HoleHeader(hole: hole, number: game.currentHoleIndex + 1, of: game.holes.count)
                 }
+            }
+            NextPubSection(next: game.nextHole)
+        } secondary: {
+            if let hole = game.currentHole {
                 Section {
                     ForEach(game.players) { player in
                         PlayerHoleRow(
@@ -36,32 +40,21 @@ struct CurrentHoleView: View {
                     }
                 }
             }
-
-            Section("Next pub") {
-                if let next = game.nextHole {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(next.pubName).font(.headline)
-                        if !next.address.isEmpty {
-                            Text(next.address).font(.subheadline).foregroundStyle(.secondary)
-                        }
-                        Text("\(next.drink) · par \(next.par)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    DirectionsLink(hole: next)
-                } else {
-                    Text("This is the last hole.").foregroundStyle(.secondary)
-                }
-            }
         }
         .navigationTitle(game.name)
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await model.refresh() }
-        .safeAreaInset(edge: .bottom) {
+        .bottomActionBar {
             if isOrganiser {
                 OrganiserControls(game: game, confirmingNext: $confirmingNext)
+            } else {
+                Label("Following live. The organiser moves everyone on.", systemImage: "dot.radiowaves.left.and.right")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
         }
+        .sensoryFeedback(.impact(weight: .medium), trigger: game.currentHoleIndex)
+        .sensoryFeedback(trigger: game.scores) { _, _ in isOrganiser ? .success : nil }
         .confirmationDialog(nextTitle, isPresented: $confirmingNext, titleVisibility: .visible) {
             Button(game.isOnLastHole ? "Finish round" : "Move everyone on") {
                 Task { await model.perform(.nextHole) }
@@ -95,6 +88,30 @@ struct ScoreTarget: Identifiable, Hashable {
     var id: String { playerID.uuidString + holeID.uuidString }
 }
 
+private struct NextPubSection: View {
+    let next: Hole?
+
+    var body: some View {
+        Section("Next pub") {
+            if let next {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(next.pubName).font(.headline)
+                    if !next.address.isEmpty {
+                        Text(next.address).font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    Text("\(next.drink) · par \(next.par)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+                DirectionsLink(hole: next)
+            } else {
+                Text("This is the last hole.").foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 private struct HoleHeader: View {
     let hole: Hole
     let number: Int
@@ -112,9 +129,9 @@ private struct HoleHeader: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            HStack(spacing: 16) {
-                Label(hole.drink, systemImage: "mug.fill")
-                Label("Par \(hole.par)", systemImage: "flag.fill")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 16) { drinkAndPar }
+                VStack(alignment: .leading, spacing: 8) { drinkAndPar }
             }
             .font(.headline)
             .padding(.top, 4)
@@ -122,6 +139,12 @@ private struct HoleHeader: View {
         .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
         DirectionsLink(hole: hole)
+    }
+
+    @ViewBuilder
+    private var drinkAndPar: some View {
+        Label(hole.drink, systemImage: "mug.fill")
+        Label("Par \(hole.par)", systemImage: "flag.fill")
     }
 }
 
@@ -164,14 +187,14 @@ private struct PlayerHoleRow: View {
     }
 
     private var content: some View {
-        HStack {
+        AdaptiveRow {
             VStack(alignment: .leading, spacing: 2) {
                 Text(player.name)
                 if let team {
                     Text(team.name).font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Spacer()
+        } trailing: {
             if let score {
                 let strokes = Scoring.strokes(for: score, penalties: penalties)
                 VStack(alignment: .trailing, spacing: 2) {
@@ -181,12 +204,16 @@ private struct PlayerHoleRow: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(strokes) strokes, \(Scoring.formatToPar(strokes - par)) to par")
             } else {
                 Text("No score").foregroundStyle(.secondary)
             }
         }
+        .frame(minHeight: 44)
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
+        .accessibilityHint(canEdit ? "Enter score" : "")
     }
 }
 
@@ -216,8 +243,6 @@ private struct OrganiserControls: View {
             .buttonStyle(.borderedProminent)
         }
         .controlSize(.large)
-        .padding(16)
-        .background(.bar)
     }
 }
 

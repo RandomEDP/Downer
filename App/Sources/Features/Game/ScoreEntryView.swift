@@ -56,7 +56,11 @@ struct ScoreEntryView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save).disabled(isSaving)
+                    if isSaving {
+                        ProgressView().accessibilityLabel("Saving")
+                    } else {
+                        Button("Save", action: save)
+                    }
                 }
             }
         }
@@ -95,6 +99,7 @@ struct ScoreEntryView: View {
 private struct SipCounter: View {
     @Binding var sips: Int
     let par: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack {
@@ -117,7 +122,8 @@ private struct SipCounter: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .controlSize(.large)
-        .animation(.snappy, value: sips)
+        .animation(reduceMotion ? nil : .snappy, value: sips)
+        .sensoryFeedback(.selection, trigger: sips)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Sips")
         .accessibilityValue("\(sips), par \(par)")

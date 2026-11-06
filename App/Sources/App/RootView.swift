@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -12,6 +13,10 @@ struct RootView: View {
                     HomeView()
                 }
             }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Catch up on anything that changed while the app was in the background.
+            if phase == .active { Task { await model.refresh() } }
         }
         .alert("Something went wrong", isPresented: errorShown) {
             Button("OK", role: .cancel) {}

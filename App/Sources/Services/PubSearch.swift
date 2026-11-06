@@ -16,6 +16,9 @@ final class PubSearch: NSObject {
         didSet { completer.queryFragment = query }
     }
     private(set) var suggestions: [PubSuggestion] = []
+    private(set) var locationAccess = LocationAccess.unknown
+
+    enum LocationAccess { case unknown, notAsked, allowed, denied }
 
     @ObservationIgnored private let completer = MKLocalSearchCompleter()
     @ObservationIgnored private let locationManager = CLLocationManager()
@@ -29,12 +32,22 @@ final class PubSearch: NSObject {
         locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
     }
 
-    /// Biases results to where the user is, asking for location the first time.
+    /// Uses location if already allowed. Never shows the permission prompt by itself.
     func start() {
-        switch locationManager.authorizationStatus {
-        case .notDetermined: locationManager.requestWhenInUseAuthorization()
-        case .authorizedWhenInUse, .authorizedAlways: locationManager.requestLocation()
-        default: break
+        updateAccess(locationManager.authorizationStatus)
+        if locationAccess == .allowed { locationManager.requestLocation() }
+    }
+
+    /// Shows the system prompt. Call only from the user's tap on the in-context explanation.
+    func requestLocationAccess() {
+        locationManager.requestWhenInUseAuthorization()
+    }
+
+    private func updateAccess(_ status: CLAuthorizationStatus) {
+        locationAccess = switch status {
+        case .notDetermined: .notAsked
+        case .authorizedWhenInUse, .authorizedAlways: .allowed
+        default: .denied
         }
     }
 
@@ -58,6 +71,7 @@ extension PubSearch: MKLocalSearchCompleterDelegate {
 extension PubSearch: CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
+        MainActor.assumeIsolated { updateAccess(status) }
         guard status == .authorizedWhenInUse || status == .authorizedAlways else { return }
         manager.requestLocation()
     }

@@ -11,7 +11,8 @@ iPhone app (SwiftUI) for running and managing pub golfs, including live use by p
 - `supabase/functions`: edge functions.
 
 ## Rules
-- Before any UI work, load `.claude/skills/swiftui-expert-skill` and `.claude/skills/ios-design-guidelines`.
+- Before any UI work, load `.claude/skills/swiftui-expert-skill` and `.claude/skills/ios-design-guidelines` (read the rules and the references for the topics you touch, not just SKILL.md), then check the HIG evaluation checklist before opening the PR.
+- iPhone Duo / wide screens: lay out two peer regions with `SplitSections` and bottom actions with `bottomActionBar` (`Features/Shared/AdaptiveLayout.swift`). CI builds with Xcode 26, so iOS 27.1 APIs (`ArrangementView`, `reservedRegions`) don't compile yet; switch to them when CI moves to Xcode 27.1.
 - Every PR into main runs CI (`.github/workflows/ci.yml`). Merge your own PR once CI is green if there are no open questions.
 - Never run the TestFlight workflow (`ios.yml` with `testflight=true`) from a feature thread.
 - Never link to this repository anywhere public (emails, posts, ads, app links, App Store text).

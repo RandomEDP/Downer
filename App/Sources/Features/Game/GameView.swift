@@ -7,7 +7,7 @@ struct GameView: View {
 
     var body: some View {
         TabView {
-            Tab("Hole", systemImage: "flag.fill") {
+            Tab("Hole", systemImage: "flag") {
                 NavigationStack {
                     Group {
                         switch game.status {
@@ -19,7 +19,7 @@ struct GameView: View {
                     .toolbar { gameMenu }
                 }
             }
-            Tab("Leaderboard", systemImage: "trophy.fill") {
+            Tab("Leaderboard", systemImage: "trophy") {
                 NavigationStack {
                     LeaderboardView(game: game)
                         .toolbar { gameMenu }
@@ -46,6 +46,8 @@ struct GameMenu: View {
     let game: Game
     let isOrganiser: Bool
 
+    @State private var confirmingFinish = false
+
     var body: some View {
         Menu("Game", systemImage: "ellipsis.circle") {
             ShareLink(item: GameView.invite(for: game)) {
@@ -53,12 +55,19 @@ struct GameMenu: View {
             }
             if isOrganiser && game.status == .live {
                 Button("Finish round", systemImage: "flag.checkered") {
-                    Task { await model.perform(.finish) }
+                    confirmingFinish = true
                 }
             }
-            Button("Leave game", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+            Button("Leave game", systemImage: "rectangle.portrait.and.arrow.right") {
                 model.leave()
             }
+        }
+        .confirmationDialog("Finish the round now?", isPresented: $confirmingFinish, titleVisibility: .visible) {
+            Button("Finish round", role: .destructive) {
+                Task { await model.perform(.finish) }
+            }
+        } message: {
+            Text("Scores are locked once the round is finished.")
         }
     }
 }

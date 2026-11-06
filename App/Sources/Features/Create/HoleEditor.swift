@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Edit one hole: find the pub on Apple Maps (or just type a name), then set the drink and par.
 struct HoleEditor: View {
@@ -31,6 +32,8 @@ struct HoleEditor: View {
                 }
             } header: {
                 Label("Find on the map", systemImage: "magnifyingglass")
+            } footer: {
+                LocationFooter(access: search.locationAccess) { search.requestLocationAccess() }
             }
 
             Section {
@@ -62,6 +65,34 @@ struct HoleEditor: View {
         hole.address = suggestion.subtitle
         search.query = ""
         searchFocused = false
+    }
+}
+
+/// Explains why location helps before the system prompt, and points to Settings if it was denied.
+private struct LocationFooter: View {
+    let access: PubSearch.LocationAccess
+    let requestAccess: () -> Void
+
+    var body: some View {
+        switch access {
+        case .notAsked:
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Share your location to see pubs near you first. It's only used for this search.")
+                Button("Use my location", systemImage: "location.fill", action: requestAccess)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .textCase(nil)
+            }
+        case .denied:
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Location is off, so results may not be nearby.")
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    Link("Open Settings", destination: url)
+                }
+            }
+        case .unknown, .allowed:
+            EmptyView()
+        }
     }
 }
 

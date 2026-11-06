@@ -9,9 +9,10 @@ struct LobbyView: View {
     @State private var newTeamName = ""
     @State private var newPlayerName = ""
     @State private var newPlayerTeam: Team.ID?
+    @State private var playerToRemove: Player?
 
     var body: some View {
-        List {
+        SplitSections {
             Section {
                 VStack(spacing: 8) {
                     Text("Game code")
@@ -28,6 +29,7 @@ struct LobbyView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
                 .accessibilityElement(children: .contain)
+                .accessibilityLabel("Game code \(game.code.map(String.init).joined(separator: " "))")
             } footer: {
                 Text("Anyone with the code can follow the leaderboard live.")
             }
@@ -45,6 +47,7 @@ struct LobbyView: View {
                         TextField("New team", text: $newTeamName)
                             .onSubmit(addTeam)
                         Button("Add", action: addTeam)
+                            .buttonStyle(.borderless)
                             .disabled(newTeamName.trimmed.isEmpty)
                     }
                 } header: {
@@ -66,11 +69,11 @@ struct LobbyView: View {
                     Text("Add a player")
                 }
             }
-
-            PlayersByTeamSection(game: game, isOrganiser: isOrganiser)
+        } secondary: {
+            PlayersByTeamSection(game: game, isOrganiser: isOrganiser, playerToRemove: $playerToRemove)
         }
         .navigationTitle(game.name)
-        .safeAreaInset(edge: .bottom) {
+        .bottomActionBar {
             if isOrganiser {
                 Button {
                     Task { await model.perform(.start) }
@@ -81,18 +84,32 @@ struct LobbyView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .disabled(game.players.isEmpty)
-                .padding(16)
-                .background(.bar)
             } else {
                 Label("Waiting for the organiser to start", systemImage: "hourglass")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(16)
-                    .background(.bar)
             }
         }
         .refreshable { await model.refresh() }
+        .confirmationDialog(
+            "Remove \(playerToRemove?.name ?? "player")?",
+            isPresented: removeDialogShown,
+            titleVisibility: .visible,
+            presenting: playerToRemove
+        ) { player in
+            Button("Remove \(player.name)", role: .destructive) {
+                Task { await model.perform(.removePlayer(player.id)) }
+            }
+        } message: { _ in
+            Text("Their scores are deleted too.")
+        }
+    }
+
+    private var removeDialogShown: Binding<Bool> {
+        Binding(
+            get: { playerToRemove != nil },
+            set: { if !$0 { playerToRemove = nil } }
+        )
     }
 
     private func addTeam() {
@@ -142,6 +159,8 @@ struct PlayersByTeamSection: View {
     let game: Game
     let isOrganiser: Bool
 
+    @Binding var playerToRemove: Player?
+
     var body: some View {
         ForEach(groups) { group in
             Section(group.title) {
@@ -150,10 +169,19 @@ struct PlayersByTeamSection: View {
                 }
                 ForEach(group.players) { player in
                     playerRow(player)
+                        .swipeActions(edge: .trailing) {
+                            if canManage {
+                                Button("Remove", systemImage: "trash", role: .destructive) {
+                                    playerToRemove = player
+                                }
+                            }
+                        }
                 }
             }
         }
     }
+
+    private var canManage: Bool { isOrganiser && game.status != .finished }
 
     private struct PlayerGroup: Identifiable {
         let id: String
@@ -174,7 +202,7 @@ struct PlayersByTeamSection: View {
 
     @ViewBuilder
     private func playerRow(_ player: Player) -> some View {
-        if isOrganiser && game.status != .finished {
+        if canManage {
             Menu {
                 Picker("Team", selection: teamBinding(for: player)) {
                     Text("No team").tag(Team.ID?.none)
@@ -183,12 +211,21 @@ struct PlayersByTeamSection: View {
                     }
                 }
                 Button("Remove \(player.name)", systemImage: "trash", role: .destructive) {
-                    Task { await model.perform(.removePlayer(player.id)) }
+                    playerToRemove = player
                 }
             } label: {
-                Text(player.name).frame(maxWidth: .infinity, alignment: .leading)
+                HStack {
+                    Text(player.name)
+                    Spacer()
+                    Image(systemName: "ellipsis")
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+                .frame(minHeight: 44)
+                .contentShape(.rect)
             }
             .tint(.primary)
+            .accessibilityHint("Change team or remove")
         } else {
             Text(player.name)
         }
